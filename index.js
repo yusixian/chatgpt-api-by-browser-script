@@ -5,7 +5,10 @@ const cors = require('cors');
 
 const WS_PORT = 8765;
 const HTTP_PORT = 8766;
-
+const presetConfig = {
+  summary:
+    '请用中文为这篇技术博文生成一个精炼的AI摘要，聚焦文章的核心技术和方法，快速概述其创新点和实用价值，使读者能够快速把握文章的重点和整体框架，提供一个高效的内容概览（150字以内，视文章长度适当增减）：',
+};
 class WebSocketServer {
   constructor() {
     this.server = new WebSocket.Server({ port: WS_PORT });
@@ -36,7 +39,7 @@ class WebSocketServer {
 
     this.connectedSocket.send(JSON.stringify(request));
 
-    let text = ''
+    let text = '';
     const handleMessage = (message) => {
       const data = message;
       const jsonString = data.toString('utf8');
@@ -45,9 +48,9 @@ class WebSocketServer {
       if (jsonObject.type === 'stop') {
         this.connectedSocket.off('message', handleMessage);
         callback('stop', text);
-      } else if (jsonObject.type === 'answer')  {
-        console.log('answer:', jsonObject.text)
-        text = jsonObject.text
+      } else if (jsonObject.type === 'answer') {
+        console.log('answer:', jsonObject.text);
+        text = jsonObject.text;
         callback('answer', text);
       }
     };
@@ -64,25 +67,18 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cors());
 
 app.post('/v1/chat/completions', async function (req, res) {
-
-  const { messages, model, stream, newChat = true  } = req.body;
-
-  if(stream){
+  const { messages, model, stream, newChat = true, payload, type } = req.body;
+  const { prefix, suffix } = payload ?? {}; // suffix
+  if (stream) {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
   }
 
-  console.log('request body', req.body)
-
-  const requestPayload = `
-    Now you must play the role of system and answer the user.
-
-    ${JSON.stringify(messages)}
-
-    Your answer:
-  `;
+  console.log('request body', req.body);
+  const preset = presetConfig?.[type] ?? '';
+  const requestPayload = (prefix ?? '') + preset + messages + (suffix ?? '');
 
   let lastResponse = '';
   webSocketServer.sendRequest(
@@ -93,7 +89,7 @@ app.post('/v1/chat/completions', async function (req, res) {
     },
     (type, response) => {
       try {
-        response = response.trim()
+        response = response.trim();
         let deltaContent = '';
         if (lastResponse) {
           const index = response.indexOf(lastResponse);
@@ -102,14 +98,16 @@ app.post('/v1/chat/completions', async function (req, res) {
           deltaContent = response;
         }
         const result = {
-          choices: [{
+          choices: [
+            {
               message: { content: response },
-              delta: { content: deltaContent }
-          }]
-        }
-        lastResponse = response
-        if(type === 'stop'){
-          if(stream) {
+              delta: { content: deltaContent },
+            },
+          ],
+        };
+        lastResponse = response;
+        if (type === 'stop') {
+          if (stream) {
             res.write(`id: ${Date.now()}\n`);
             res.write(`event: event\n`);
             res.write('data: [DONE]\n\n');
@@ -118,17 +116,17 @@ app.post('/v1/chat/completions', async function (req, res) {
             res.send(result);
           }
         } else {
-          if(stream) {
+          if (stream) {
             res.write(`id: ${Date.now()}\n`);
             res.write(`event: event\n`);
             res.write(`data: ${JSON.stringify(result)}\n\n`);
           }
         }
-        console.log('result', result)
+        console.log('result', result);
       } catch (error) {
-        console.log('error', error)
+        console.log('error', error);
       }
-    }
+    },
   );
 });
 
