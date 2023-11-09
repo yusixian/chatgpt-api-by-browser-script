@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "pm2": "pm2 start ecosystem.config.js",
+    "pm2:stop": "pm2 stop chatgpt-browser-api",
+    "pm2:log": "pm2 log chatgpt-browser-api"
   },
   "dependencies": {
     "body-parser": "^1.20.2",
